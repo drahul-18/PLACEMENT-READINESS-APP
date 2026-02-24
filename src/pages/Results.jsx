@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { getAnalysisById, getLatestAnalysis } from '../lib/storage';
+import { useEffect, useState, useCallback } from 'react';
+import { getAnalysisById, getLatestAnalysis, updateStorageEntry } from '../lib/storage';
 import {
   Card,
   CardHeader,
@@ -8,14 +8,23 @@ import {
   CardContent,
 } from '../components/ui/card';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Calendar, HelpCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Calendar,
+  HelpCircle,
+  Copy,
+  Download,
+  Check,
+  Target,
+} from 'lucide-react';
 
 function CircularScore({ value }) {
   const size = 120;
   const strokeWidth = 10;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = value / 100;
+  const progress = Math.max(0, Math.min(100, value)) / 100;
   const strokeDashoffset = circumference * (1 - progress);
 
   return (
@@ -32,26 +41,124 @@ function CircularScore({ value }) {
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
-          style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
+          style={{ transition: 'stroke-dashoffset 0.3s ease-in-out' }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-gray-900">{value}</span>
+        <span className="text-2xl font-bold text-gray-900">{Math.round(value)}</span>
         <span className="text-xs text-gray-500">Readiness</span>
       </div>
     </div>
   );
 }
 
+function getAllSkills(extractedSkills) {
+  const skills = [];
+  for (const { skills: s } of Object.values(extractedSkills.byCategory || {})) {
+    skills.push(...s);
+  }
+  return [...new Set(skills)];
+}
+
+function computeLiveScore(baseScore, skillConfidenceMap) {
+  let score = baseScore;
+  for (const status of Object.values(skillConfidenceMap || {})) {
+    if (status === 'know') score += 2;
+    else score -= 2;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
+function formatPlanText(plan) {
+  if (!plan?.length) return '';
+  return plan
+    .map(
+      (d) =>
+        `Day ${d.day}: ${d.title}\n${(d.items || []).map((i) => `  • ${i}`).join('\n')}`
+    )
+    .join('\n\n');
+}
+
+function formatChecklistText(checklist) {
+  if (!checklist?.length) return '';
+  return checklist
+    .map(
+      (r) =>
+        `${r.round}: ${r.title}\n${(r.items || []).map((i) => `  • ${i}`).join('\n')}`
+    )
+    .join('\n\n');
+}
+
+function formatQuestionsText(questions) {
+  if (!questions?.length) return '';
+  return questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
+}
+
 export function Results() {
   const [searchParams] = useSearchParams();
   const id = searchParams.get('id');
   const [data, setData] = useState(null);
+  const [copiedSection, setCopiedSection] = useState(null);
 
   useEffect(() => {
     const entry = id ? getAnalysisById(id) : getLatestAnalysis();
     setData(entry);
   }, [id]);
+
+  const updateConfidence = useCallback((skill, status) => {
+    setData((prev) => {
+      if (!prev?.id) return prev;
+      const map = { ...(prev.skillConfidenceMap || {}) };
+      map[skill] = status;
+      updateStorageEntry(prev.id, { skillConfidenceMap: map });
+      return { ...prev, skillConfidenceMap: map };
+    });
+  }, []);
+
+  const copyToClipboard = async (text, section) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSection(section);
+      setTimeout(() => setCopiedSection(null), 1500);
+    } catch (e) {
+      console.error('Copy failed:', e);
+    }
+  };
+
+  const downloadTxt = () => {
+    if (!data) return;
+    const { company, role, extractedSkills, checklist, plan, questions, readinessScore } = data;
+    const liveScore = computeLiveScore(readinessScore, data.skillConfidenceMap);
+
+    const sections = [
+      `Placement Readiness Analysis`,
+      company ? `Company: ${company}` : '',
+      role ? `Role: ${role}` : '',
+      `Readiness Score: ${liveScore}`,
+      '',
+      '--- Key Skills ---',
+      ...Object.entries(extractedSkills?.byCategory || {}).flatMap(([k, { label, skills }]) => [
+        `${label}: ${skills.join(', ')}`,
+      ]),
+      '',
+      '--- Round-wise Checklist ---',
+      formatChecklistText(checklist),
+      '',
+      '--- 7-Day Plan ---',
+      formatPlanText(plan),
+      '',
+      '--- 10 Likely Interview Questions ---',
+      formatQuestionsText(questions),
+    ];
+
+    const blob = new Blob([sections.filter(Boolean).join('\n\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `placement-readiness-${company || 'analysis'}-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (!data) {
     return (
@@ -73,6 +180,19 @@ export function Results() {
   }
 
   const { company, role, extractedSkills, checklist, plan, questions, readinessScore } = data;
+  const skillConfidenceMap = (() => {
+    const all = getAllSkills(extractedSkills);
+    const map = { ...(data?.skillConfidenceMap || {}) };
+    for (const s of all) {
+      if (map[s] === undefined) map[s] = 'practice';
+    }
+    return map;
+  })();
+  const liveScore = computeLiveScore(readinessScore, skillConfidenceMap);
+  const weakSkills = getAllSkills(extractedSkills).filter(
+    (s) => (skillConfidenceMap[s] || 'practice') === 'practice'
+  );
+  const top3Weak = weakSkills.slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -102,16 +222,18 @@ export function Results() {
         <Card>
           <CardHeader>
             <CardTitle>Readiness Score</CardTitle>
+            <p className="text-sm text-gray-500">Updates as you mark skills</p>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <CircularScore value={readinessScore} />
+            <CircularScore value={liveScore} />
           </CardContent>
         </Card>
 
-        {/* Key Skills Extracted */}
+        {/* Key Skills Extracted — with toggles */}
         <Card>
           <CardHeader>
             <CardTitle>Key Skills Extracted</CardTitle>
+            <p className="text-sm text-gray-500">Toggle your confidence per skill</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-3">
@@ -119,14 +241,41 @@ export function Results() {
                 <div key={key}>
                   <span className="text-xs font-medium text-gray-500 uppercase">{label}</span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {skills.map((s) => (
-                      <span
-                        key={s}
-                        className="px-2 py-0.5 bg-primary-light text-primary rounded-md text-sm"
-                      >
-                        {s}
-                      </span>
-                    ))}
+                    {skills.map((s) => {
+                      const status = skillConfidenceMap[s] || 'practice';
+                      return (
+                        <div
+                          key={s}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-gray-200 bg-gray-50"
+                        >
+                          <span className="text-sm text-gray-800">{s}</span>
+                          <div className="flex gap-0.5 ml-1">
+                            <button
+                              onClick={() => updateConfidence(s, 'know')}
+                              className={`px-1.5 py-0.5 text-xs rounded transition-colors ${
+                                status === 'know'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'text-gray-500 hover:bg-gray-100'
+                              }`}
+                              title="I know this"
+                            >
+                              Know
+                            </button>
+                            <button
+                              onClick={() => updateConfidence(s, 'practice')}
+                              className={`px-1.5 py-0.5 text-xs rounded transition-colors ${
+                                status === 'practice'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'text-gray-500 hover:bg-gray-100'
+                              }`}
+                              title="Need practice"
+                            >
+                              Practice
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -134,13 +283,20 @@ export function Results() {
           </CardContent>
         </Card>
 
-        {/* Round-wise Checklist */}
+        {/* Round-wise Checklist + Export */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5" />
               Round-wise Preparation Checklist
             </CardTitle>
+            <button
+              onClick={() => copyToClipboard(formatChecklistText(checklist), 'checklist')}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              {copiedSection === 'checklist' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              Copy round checklist
+            </button>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
@@ -163,13 +319,20 @@ export function Results() {
           </CardContent>
         </Card>
 
-        {/* 7-day Plan */}
+        {/* 7-day Plan + Export */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
               7-Day Preparation Plan
             </CardTitle>
+            <button
+              onClick={() => copyToClipboard(formatPlanText(plan), 'plan')}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              {copiedSection === 'plan' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              Copy 7-day plan
+            </button>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -191,13 +354,20 @@ export function Results() {
           </CardContent>
         </Card>
 
-        {/* 10 Likely Questions */}
+        {/* 10 Likely Questions + Export */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <HelpCircle className="w-5 h-5" />
               10 Likely Interview Questions
             </CardTitle>
+            <button
+              onClick={() => copyToClipboard(formatQuestionsText(questions), 'questions')}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              {copiedSection === 'questions' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              Copy 10 questions
+            </button>
           </CardHeader>
           <CardContent>
             <ol className="space-y-2">
@@ -208,6 +378,49 @@ export function Results() {
                 </li>
               ))}
             </ol>
+          </CardContent>
+        </Card>
+
+        {/* Export: Download as TXT */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Export</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <button
+              onClick={downloadTxt}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors"
+            >
+              <Download className="w-5 h-5" />
+              Download as TXT
+            </button>
+          </CardContent>
+        </Card>
+
+        {/* Action Next */}
+        <Card className="lg:col-span-2 border-primary-light bg-primary-light/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-primary" />
+              Action Next
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {top3Weak.length > 0 ? (
+              <>
+                <p className="text-sm text-gray-600 mb-3">Top weak areas (need practice):</p>
+                <ul className="space-y-1 mb-4">
+                  {top3Weak.map((s) => (
+                    <li key={s} className="text-gray-800 font-medium">
+                      • {s}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-primary font-medium">Start Day 1 plan now.</p>
+              </>
+            ) : (
+              <p className="text-gray-600">All skills marked as known. Keep revising and stay confident.</p>
+            )}
           </CardContent>
         </Card>
       </div>

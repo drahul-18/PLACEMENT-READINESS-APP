@@ -3,6 +3,15 @@ import { getHistory } from '../lib/storage';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { History as HistoryIcon } from 'lucide-react';
 
+function computeLiveScore(baseScore, skillConfidenceMap) {
+  let score = baseScore;
+  for (const status of Object.values(skillConfidenceMap || {})) {
+    if (status === 'know') score += 2;
+    else score -= 2;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
 function formatDate(iso) {
   try {
     const d = new Date(iso);
@@ -55,7 +64,7 @@ export function History() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="px-3 py-1 bg-primary-light text-primary rounded-lg font-medium">
-                      {entry.readinessScore}%
+                      {computeLiveScore(entry.readinessScore, entry.skillConfidenceMap)}%
                     </span>
                   </div>
                 </CardContent>

@@ -40,3 +40,17 @@ export function getLatestAnalysis() {
   const history = getHistory();
   return history[0] || null;
 }
+
+export function updateStorageEntry(id, updates) {
+  const history = getHistory();
+  const idx = history.findIndex((e) => e.id === id);
+  if (idx === -1) return false;
+  history[idx] = { ...history[idx], ...updates };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    return true;
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+    return false;
+  }
+}
