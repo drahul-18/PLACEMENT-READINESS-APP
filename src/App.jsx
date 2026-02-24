@@ -5,6 +5,8 @@ import {
   Dashboard,
   Practice,
   Assessments,
+  Results,
+  History,
   Resources,
   Profile,
 } from './pages';
@@ -18,6 +20,8 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="practice" element={<Practice />} />
           <Route path="assessments" element={<Assessments />} />
+          <Route path="results" element={<Results />} />
+          <Route path="history" element={<History />} />
           <Route path="resources" element={<Resources />} />
           <Route path="profile" element={<Profile />} />
         </Route>
