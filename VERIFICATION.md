@@ -122,7 +122,18 @@ At bottom of **Results**:
 4. **Skill toggles**: Toggle Know/Practice → finalScore updates, refresh → persists. Check History shows updated score.
 5. **Corrupted entry**: In DevTools → Application → localStorage → edit placement_readiness_history, corrupt one entry (e.g. remove "jdText") → refresh → see "One saved entry couldn't be loaded."
 
-## 14. Routes (Unchanged)
+## 14. Test Checklist & Ship Lock
+
+- **/prp/07-test**: 10 test items with checkboxes and "How to test" hints. Summary: "Tests Passed: X / 10". Warning if <10: "Fix issues before shipping." Reset button. Stored in localStorage.
+- **/prp/08-ship**: Locked until all 10 tests passed. Shows "Ship Locked" with link to Test Checklist when incomplete. Shows "Ready to Ship" when all passed.
+
+**Verification:**
+1. Visit /prp/07-test → check items persist after refresh.
+2. Visit /prp/08-ship with 0/10 passed → see locked state.
+3. Check all 10 items → visit /prp/08-ship → see "Ready to Ship".
+4. Reset checklist → /prp/08-ship shows locked again.
+
+## 15. Routes
 
 - `/` — Landing
 - `/dashboard` — Dashboard

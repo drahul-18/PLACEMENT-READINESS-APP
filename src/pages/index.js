@@ -7,3 +7,5 @@ export { Results } from './Results';
 export { History } from './History';
 export { Resources } from './Resources';
 export { Profile } from './Profile';
+export { TestChecklist } from './TestChecklist';
+export { Ship } from './Ship';

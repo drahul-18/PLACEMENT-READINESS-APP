@@ -9,6 +9,8 @@ import {
   History,
   Resources,
   Profile,
+  TestChecklist,
+  Ship,
 } from './pages';
 
 function App() {
@@ -16,6 +18,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/prp/07-test" element={<TestChecklist />} />
+        <Route path="/prp/08-ship" element={<Ship />} />
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="practice" element={<Practice />} />
