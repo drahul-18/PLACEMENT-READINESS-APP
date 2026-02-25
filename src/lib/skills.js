@@ -51,7 +51,10 @@ export function extractSkills(jdText) {
 
   const isGeneralFresher = Object.keys(byCategory).length === 0;
   if (isGeneralFresher) {
-    byCategory.general = { label: 'General', skills: ['General fresher stack'] };
+    byCategory.other = {
+      label: 'Other',
+      skills: ['Communication', 'Problem solving', 'Basic coding', 'Projects'],
+    };
   }
 
   return { byCategory, all: [...new Set(all)], isGeneralFresher };

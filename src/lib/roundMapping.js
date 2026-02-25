@@ -56,17 +56,35 @@ const ROUND_TEMPLATES = {
   },
 };
 
+function getAllSkillsFromExtracted(extractedSkills) {
+  if (extractedSkills?.all?.length) return extractedSkills.all;
+  const flat = extractedSkills?.coreCS ?? extractedSkills?.languages ?? extractedSkills?.web
+    ? extractedSkills
+    : null;
+  if (flat) {
+    const arr = [];
+    for (const key of ['coreCS', 'languages', 'web', 'data', 'cloud', 'testing', 'other']) {
+      const s = flat[key];
+      if (Array.isArray(s)) arr.push(...s);
+    }
+    return arr;
+  }
+  return [];
+}
+
 export function getRoundMapping(companyIntel, extractedSkills) {
   const size = companyIntel?.sizeCategory || 'Startup';
   const skills = extractedSkills?.byCategory || {};
-  const allSkills = extractedSkills?.all || [];
+  const allSkills = getAllSkillsFromExtracted(extractedSkills);
 
+  const coreCS = skills.coreCS?.skills ?? extractedSkills?.coreCS ?? [];
+  const web = skills.web?.skills ?? extractedSkills?.web ?? [];
   const hasDSA = !!(
-    skills.coreCS?.skills?.some((s) => /DSA|Algorithms|Data Structures/i.test(s)) ||
+    coreCS.some((s) => /DSA|Algorithms|Data Structures/i.test(s)) ||
     allSkills.some((s) => /DSA|Algorithms|Data Structures/i.test(s))
   );
   const hasWeb = !!(
-    skills.web?.skills?.length ||
+    web.length > 0 ||
     allSkills.some((s) => /React|Node|Express|JavaScript|TypeScript/i.test(s))
   );
 

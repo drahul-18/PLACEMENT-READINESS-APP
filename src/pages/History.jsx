@@ -1,16 +1,8 @@
 import { Link } from 'react-router-dom';
-import { getHistory } from '../lib/storage';
+import { getHistory, getLastSkippedCount } from '../lib/storage';
+import { computeFinalScore } from '../lib/schema';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { History as HistoryIcon } from 'lucide-react';
-
-function computeLiveScore(baseScore, skillConfidenceMap) {
-  let score = baseScore;
-  for (const status of Object.values(skillConfidenceMap || {})) {
-    if (status === 'know') score += 2;
-    else score -= 2;
-  }
-  return Math.max(0, Math.min(100, score));
-}
 
 function formatDate(iso) {
   try {
@@ -27,6 +19,7 @@ function formatDate(iso) {
 
 export function History() {
   const entries = getHistory();
+  const skippedCount = getLastSkippedCount();
 
   return (
     <div className="space-y-6">
@@ -34,6 +27,12 @@ export function History() {
       <p className="text-gray-600">
         Your past JD analyses. Click an entry to view full results.
       </p>
+
+      {skippedCount > 0 && (
+        <p className="text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-lg">
+          One saved entry couldn&apos;t be loaded. Create a new analysis.
+        </p>
+      )}
 
       {entries.length === 0 ? (
         <Card>
@@ -64,7 +63,7 @@ export function History() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="px-3 py-1 bg-primary-light text-primary rounded-lg font-medium">
-                      {computeLiveScore(entry.readinessScore, entry.skillConfidenceMap)}%
+                      {computeFinalScore(entry.baseScore ?? entry.readinessScore, entry.skillConfidenceMap)}%
                     </span>
                   </div>
                 </CardContent>

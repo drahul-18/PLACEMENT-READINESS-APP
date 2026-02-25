@@ -67,7 +67,22 @@ const QUESTION_TEMPLATES = {
   ],
 };
 
+const GENERAL_FRESHER_QUESTIONS = [
+  'Tell me about yourself and your background.',
+  'Describe a project you are proud of.',
+  'How do you approach a problem you have not seen before?',
+  'What are your strengths and weaknesses?',
+  'How do you handle working in a team?',
+  'Explain a technical concept to a non-technical person.',
+  'What interests you about this role?',
+  'Where do you see yourself in 5 years?',
+  'Describe a time you overcame a challenge.',
+  'What questions do you have for us?',
+];
+
 export function generateQuestions(skills) {
+  if (skills.isGeneralFresher) return GENERAL_FRESHER_QUESTIONS;
+
   const questions = new Set();
 
   if (skills.byCategory?.coreCS?.skills?.some((s) => /DSA|Algorithms|Data Structures/i.test(s))) {

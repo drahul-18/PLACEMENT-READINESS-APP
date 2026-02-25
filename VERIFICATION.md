@@ -101,7 +101,28 @@ At bottom of **Results**:
 - **Startup + React/Node** → Round 1: Practical Coding, Round 2: System Discussion, Round 3: Culture Fit
 - **Mid-size + DSA** → Round 1: Technical Screen, Round 2: Technical Deep-dive, Round 3: Culture + HR
 
-## 10. Routes (Unchanged)
+## 10. Input Validation (Assessments)
+
+- JD textarea is **required**
+- If JD < 200 characters: calm warning — "This JD is too short to analyze deeply. Paste full JD for better output."
+- Company and Role remain optional
+
+## 11. Schema & Edge Cases
+
+- **Empty skills**: When no skills detected, "other" = [Communication, Problem solving, Basic coding, Projects]. Plan, checklist, questions adapt for general fresher.
+- **baseScore**: Computed only on analyze. Never changes.
+- **finalScore**: baseScore + skill confidence adjustments. Updates when user toggles skills. Persisted with updatedAt.
+- **Corrupted history**: If localStorage has invalid entry, it is skipped. Message: "One saved entry couldn't be loaded. Create a new analysis."
+
+## 13. Edge Case Verification Steps
+
+1. **JD < 200 chars**: Paste "Short JD" (9 chars) → see warning. Analyze still works.
+2. **Empty JD**: Click Analyze without JD → error "Please paste the job description text."
+3. **No skills (general fresher)**: Paste JD with no tech keywords → see "other" skills, general fresher plan/checklist/questions.
+4. **Skill toggles**: Toggle Know/Practice → finalScore updates, refresh → persists. Check History shows updated score.
+5. **Corrupted entry**: In DevTools → Application → localStorage → edit placement_readiness_history, corrupt one entry (e.g. remove "jdText") → refresh → see "One saved entry couldn't be loaded."
+
+## 14. Routes (Unchanged)
 
 - `/` — Landing
 - `/dashboard` — Dashboard

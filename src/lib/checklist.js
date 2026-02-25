@@ -85,7 +85,15 @@ function getSkillAwareItems(roundKey, skills) {
   return combined.slice(0, 8);
 }
 
+const GENERAL_FRESHER_CHECKLIST = [
+  { round: 'Round 1', title: 'Aptitude / Basics', items: ['Practice quantitative aptitude', 'Logical reasoning', 'Verbal ability', 'Time-bound practice tests'] },
+  { round: 'Round 2', title: 'Communication + Problem Solving', items: ['Prepare clear explanations', 'Practice approach articulation', 'Basic coding problems', 'Logical puzzles'] },
+  { round: 'Round 3', title: 'Projects + Fit', items: ['Document projects with STAR', 'Prepare "tell me about yourself"', 'Research company', 'Prepare questions to ask'] },
+];
+
 export function generateChecklist(skills) {
+  if (skills.isGeneralFresher) return GENERAL_FRESHER_CHECKLIST;
+
   return [
     {
       round: 'Round 1',

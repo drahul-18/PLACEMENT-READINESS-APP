@@ -18,9 +18,9 @@ export function Assessments() {
   const [jdText, setJdText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState('');
-
   const handleAnalyze = () => {
     setError('');
+
     if (!jdText.trim()) {
       setError('Please paste the job description text.');
       return;
@@ -90,15 +90,24 @@ export function Assessments() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Job Description <span className="text-gray-500">(required)</span>
+            </label>
             <textarea
               value={jdText}
               onChange={(e) => setJdText(e.target.value)}
               placeholder="Paste the full job description here..."
               rows={12}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-y font-mono text-sm"
+              required
             />
           </div>
+
+          {jdText.trim().length > 0 && jdText.trim().length < 200 && (
+            <p className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+              This JD is too short to analyze deeply. Paste full JD for better output.
+            </p>
+          )}
 
           {error && (
             <p className="text-sm text-red-600">{error}</p>

@@ -22,6 +22,11 @@ import {
 } from 'lucide-react';
 import { getCompanyIntel } from '../lib/companyIntel';
 import { getRoundMapping } from '../lib/roundMapping';
+import {
+  getSkillsForDisplay,
+  getAllSkillsFromNormalized,
+  computeFinalScore,
+} from '../lib/schema';
 
 function CircularScore({ value }) {
   const size = 120;
@@ -57,39 +62,35 @@ function CircularScore({ value }) {
 }
 
 function getAllSkills(extractedSkills) {
-  const skills = [];
-  for (const { skills: s } of Object.values(extractedSkills.byCategory || {})) {
-    skills.push(...s);
+  if (extractedSkills?.byCategory) {
+    const skills = [];
+    for (const { skills: s } of Object.values(extractedSkills.byCategory || {})) {
+      skills.push(...(s || []));
+    }
+    return [...new Set(skills)];
   }
-  return [...new Set(skills)];
-}
-
-function computeLiveScore(baseScore, skillConfidenceMap) {
-  let score = baseScore;
-  for (const status of Object.values(skillConfidenceMap || {})) {
-    if (status === 'know') score += 2;
-    else score -= 2;
-  }
-  return Math.max(0, Math.min(100, score));
+  return getAllSkillsFromNormalized(extractedSkills);
 }
 
 function formatPlanText(plan) {
   if (!plan?.length) return '';
   return plan
-    .map(
-      (d) =>
-        `Day ${d.day}: ${d.title}\n${(d.items || []).map((i) => `  • ${i}`).join('\n')}`
-    )
+    .map((d) => {
+      const title = d.title ?? d.focus ?? '';
+      const tasks = d.items ?? d.tasks ?? [];
+      return `Day ${d.day}: ${title}\n${tasks.map((i) => `  • ${i}`).join('\n')}`;
+    })
     .join('\n\n');
 }
 
 function formatChecklistText(checklist) {
   if (!checklist?.length) return '';
   return checklist
-    .map(
-      (r) =>
-        `${r.round}: ${r.title}\n${(r.items || []).map((i) => `  • ${i}`).join('\n')}`
-    )
+    .map((r) => {
+      const title = r.roundTitle ?? `${r.round}: ${r.title}`;
+      const items = r.items ?? [];
+      return `${title}\n${items.map((i) => `  • ${i}`).join('\n')}`;
+    })
     .join('\n\n');
 }
 
@@ -101,7 +102,12 @@ function formatQuestionsText(questions) {
 function formatRoundMappingText(roundMapping) {
   if (!roundMapping?.length) return '';
   return roundMapping
-    .map((r) => `Round ${r.round}: ${r.title}\n  Focus: ${r.focus}\n  Why: ${r.why}`)
+    .map((r, i) => {
+      const title = r.roundTitle ?? r.title ?? `Round ${i + 1}`;
+      const focus = Array.isArray(r.focusAreas) ? r.focusAreas.join(', ') : (r.focus ?? '');
+      const why = r.whyItMatters ?? r.why ?? '';
+      return `${title}\n  Focus: ${focus}\n  Why: ${why}`;
+    })
     .join('\n\n');
 }
 
@@ -138,16 +144,19 @@ export function Results() {
 
   const downloadTxt = () => {
     if (!data) return;
-    const { company, role, extractedSkills, checklist, plan, questions, readinessScore } = data;
-    const liveScore = computeLiveScore(readinessScore, data.skillConfidenceMap);
+    const { company, role, extractedSkills, checklist, plan, plan7Days, questions } = data;
+    const planForExport = plan7Days ?? plan ?? [];
+    const baseScore = data.baseScore ?? data.readinessScore ?? 35;
+    const finalScore = data.finalScore ?? computeFinalScore(baseScore, data.skillConfidenceMap);
     const intel = data.companyIntel ?? (company ? getCompanyIntel(company, data.jdText) : null);
     const mapping = data.roundMapping ?? getRoundMapping(intel, extractedSkills);
+    const planData = plan7Days ?? plan ?? [];
 
     const sections = [
       `Placement Readiness Analysis`,
       company ? `Company: ${company}` : '',
       role ? `Role: ${role}` : '',
-      `Readiness Score: ${liveScore}`,
+      `Readiness Score: ${finalScore}`,
       '',
       ...(intel
         ? [
@@ -159,16 +168,17 @@ export function Results() {
           ]
         : []),
       '--- Key Skills ---',
-      ...Object.entries(extractedSkills?.byCategory || {}).flatMap(([k, { label, skills }]) => [
-        `${label}: ${skills.join(', ')}`,
-      ]),
+      ...Object.entries(getSkillsForDisplay(extractedSkills)).flatMap(([k, val]) => {
+        const skills = val?.skills ?? val;
+        return Array.isArray(skills) ? [`${val?.label ?? k}: ${skills.join(', ')}`] : [];
+      }),
       '',
       ...(mapping?.length ? ['--- Round Mapping ---', formatRoundMappingText(mapping), ''] : []),
       '--- Round-wise Checklist ---',
       formatChecklistText(checklist),
       '',
       '--- 7-Day Plan ---',
-      formatPlanText(plan),
+      formatPlanText(planForExport),
       '',
       '--- 10 Likely Interview Questions ---',
       formatQuestionsText(questions),
@@ -202,9 +212,11 @@ export function Results() {
     );
   }
 
-  const { company, role, extractedSkills, checklist, plan, questions, readinessScore } = data;
+  const { company, role, extractedSkills, checklist, plan, plan7Days, questions } = data;
+  const baseScore = data.baseScore ?? data.readinessScore ?? 35;
   const companyIntel = data.companyIntel ?? (company ? getCompanyIntel(company, data.jdText) : null);
   const roundMapping = data.roundMapping ?? getRoundMapping(companyIntel, extractedSkills);
+  const skillsForDisplay = getSkillsForDisplay(extractedSkills);
   const skillConfidenceMap = (() => {
     const all = getAllSkills(extractedSkills);
     const map = { ...(data?.skillConfidenceMap || {}) };
@@ -213,7 +225,7 @@ export function Results() {
     }
     return map;
   })();
-  const liveScore = computeLiveScore(readinessScore, skillConfidenceMap);
+  const finalScore = data.finalScore ?? computeFinalScore(baseScore, skillConfidenceMap);
   const weakSkills = getAllSkills(extractedSkills).filter(
     (s) => (skillConfidenceMap[s] || 'practice') === 'practice'
   );
@@ -282,7 +294,7 @@ export function Results() {
             <p className="text-sm text-gray-500">Updates as you mark skills</p>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <CircularScore value={liveScore} />
+            <CircularScore value={finalScore} />
           </CardContent>
         </Card>
 
@@ -294,7 +306,7 @@ export function Results() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-3">
-              {Object.entries(extractedSkills.byCategory || {}).map(([key, { label, skills }]) => (
+              {Object.entries(skillsForDisplay).map(([key, { label, skills }]) => (
                 <div key={key}>
                   <span className="text-xs font-medium text-gray-500 uppercase">{label}</span>
                   <div className="flex flex-wrap gap-2 mt-1">
@@ -353,19 +365,21 @@ export function Results() {
             <CardContent>
               <div className="space-y-0">
                 {roundMapping.map((r, i) => (
-                  <div key={r.round} className="flex gap-4">
+                  <div key={i} className="flex gap-4">
                     <div className="flex flex-col items-center shrink-0">
                       <div className="w-10 h-10 rounded-full bg-primary-light flex items-center justify-center text-primary font-semibold">
-                        {r.round}
+                        {i + 1}
                       </div>
                       {i < roundMapping.length - 1 && (
                         <div className="w-0.5 flex-1 min-h-[20px] bg-gray-200 my-1" />
                       )}
                     </div>
                     <div className="pb-8 last:pb-0">
-                      <h4 className="font-semibold text-gray-900">{r.title}</h4>
-                      <p className="text-sm text-primary mt-0.5">{r.focus}</p>
-                      <p className="text-sm text-gray-500 mt-2">Why this round matters: {r.why}</p>
+                      <h4 className="font-semibold text-gray-900">{r.roundTitle ?? r.title}</h4>
+                      <p className="text-sm text-primary mt-0.5">
+                        {(Array.isArray(r.focusAreas) ? r.focusAreas : [r.focus]).filter(Boolean).join(' + ')}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">Why this round matters: {r.whyItMatters ?? r.why}</p>
                     </div>
                   </div>
                 ))}
@@ -382,7 +396,7 @@ export function Results() {
               Round-wise Preparation Checklist
             </CardTitle>
             <button
-              onClick={() => copyToClipboard(formatChecklistText(checklist), 'checklist')}
+              onClick={() => copyToClipboard(formatChecklistText(checklistData), 'checklist')}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               {copiedSection === 'checklist' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -391,13 +405,13 @@ export function Results() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {checklist?.map((round) => (
-                <div key={round.round}>
+              {checklistData?.map((round, idx) => (
+                <div key={idx}>
                   <h4 className="font-semibold text-gray-900 mb-2">
-                    {round.round}: {round.title}
+                    {round.roundTitle ?? `${round.round}: ${round.title}`}
                   </h4>
                   <ul className="space-y-1">
-                    {round.items?.map((item, i) => (
+                    {(round.items ?? []).map((item, i) => (
                       <li key={i} className="flex items-start gap-2 text-gray-600">
                         <span className="text-primary mt-0.5">•</span>
                         {item}
@@ -427,15 +441,15 @@ export function Results() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {plan?.map((day) => (
+              {planData?.map((day) => (
                 <div
                   key={day.day}
                   className="p-4 border border-gray-200 rounded-lg bg-gray-50"
                 >
                   <h4 className="font-semibold text-gray-900 mb-2">Day {day.day}</h4>
-                  <p className="text-sm text-gray-600 mb-2">{day.title}</p>
+                  <p className="text-sm text-gray-600 mb-2">{day.title ?? day.focus}</p>
                   <ul className="space-y-1 text-sm text-gray-600">
-                    {day.items?.map((item, i) => (
+                    {(day.items ?? day.tasks ?? []).map((item, i) => (
                       <li key={i}>• {item}</li>
                     ))}
                   </ul>

@@ -1,34 +1,71 @@
 /**
  * localStorage persistence for analysis history
+ * Uses standardized schema. Handles corrupted entries.
  */
+
+import { createAnalysisEntry, normalizeHistoryEntry, computeFinalScore } from './schema';
 
 const STORAGE_KEY = 'placement_readiness_history';
 
 export function saveAnalysis(entry) {
-  const history = getHistory();
-  const newEntry = {
+  const normalized = createAnalysisEntry({
     ...entry,
-    id: entry.id || `analysis_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-    createdAt: entry.createdAt || new Date().toISOString(),
-  };
-  history.unshift(newEntry);
+    baseScore: entry.baseScore ?? entry.readinessScore,
+    company: entry.company ?? '',
+    role: entry.role ?? '',
+    jdText: entry.jdText ?? '',
+  });
+
+  const history = getHistory();
+  history.unshift(normalized);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-    return newEntry.id;
+    return normalized.id;
   } catch (e) {
     console.error('Failed to save to localStorage:', e);
     return null;
   }
 }
 
+let _lastSkippedCount = 0;
+
 export function getHistory() {
+  _lastSkippedCount = 0;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const result = [];
+
+    for (const item of parsed) {
+      const normalized = normalizeHistoryEntry(item);
+      if (normalized && typeof normalized.jdText === 'string') {
+        result.push(normalized);
+      } else {
+        _lastSkippedCount++;
+      }
+    }
+
+    if (_lastSkippedCount > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+      } catch (e) {
+        console.error('Failed to save cleaned history:', e);
+      }
+    }
+
+    return result;
   } catch (e) {
     console.error('Failed to read from localStorage:', e);
     return [];
   }
+}
+
+export function getLastSkippedCount() {
+  return _lastSkippedCount;
 }
 
 export function getAnalysisById(id) {
@@ -45,7 +82,17 @@ export function updateStorageEntry(id, updates) {
   const history = getHistory();
   const idx = history.findIndex((e) => e.id === id);
   if (idx === -1) return false;
-  history[idx] = { ...history[idx], ...updates };
+
+  const entry = history[idx];
+  const now = new Date().toISOString();
+
+  let newEntry = { ...entry, ...updates, updatedAt: now };
+
+  if (updates.skillConfidenceMap !== undefined) {
+    newEntry.finalScore = computeFinalScore(entry.baseScore, updates.skillConfidenceMap);
+  }
+
+  history[idx] = newEntry;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
     return true;
@@ -54,3 +101,4 @@ export function updateStorageEntry(id, updates) {
     return false;
   }
 }
+
