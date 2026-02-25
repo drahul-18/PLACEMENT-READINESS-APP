@@ -17,7 +17,11 @@ import {
   Download,
   Check,
   Target,
+  Building2,
+  GitBranch,
 } from 'lucide-react';
+import { getCompanyIntel } from '../lib/companyIntel';
+import { getRoundMapping } from '../lib/roundMapping';
 
 function CircularScore({ value }) {
   const size = 120;
@@ -94,6 +98,13 @@ function formatQuestionsText(questions) {
   return questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
 }
 
+function formatRoundMappingText(roundMapping) {
+  if (!roundMapping?.length) return '';
+  return roundMapping
+    .map((r) => `Round ${r.round}: ${r.title}\n  Focus: ${r.focus}\n  Why: ${r.why}`)
+    .join('\n\n');
+}
+
 export function Results() {
   const [searchParams] = useSearchParams();
   const id = searchParams.get('id');
@@ -129,6 +140,8 @@ export function Results() {
     if (!data) return;
     const { company, role, extractedSkills, checklist, plan, questions, readinessScore } = data;
     const liveScore = computeLiveScore(readinessScore, data.skillConfidenceMap);
+    const intel = data.companyIntel ?? (company ? getCompanyIntel(company, data.jdText) : null);
+    const mapping = data.roundMapping ?? getRoundMapping(intel, extractedSkills);
 
     const sections = [
       `Placement Readiness Analysis`,
@@ -136,11 +149,21 @@ export function Results() {
       role ? `Role: ${role}` : '',
       `Readiness Score: ${liveScore}`,
       '',
+      ...(intel
+        ? [
+            '--- Company Intel ---',
+            `Industry: ${intel.industry}`,
+            `Size: ${intel.sizeLabel}`,
+            `Hiring Focus: ${intel.hiringFocus}`,
+            '',
+          ]
+        : []),
       '--- Key Skills ---',
       ...Object.entries(extractedSkills?.byCategory || {}).flatMap(([k, { label, skills }]) => [
         `${label}: ${skills.join(', ')}`,
       ]),
       '',
+      ...(mapping?.length ? ['--- Round Mapping ---', formatRoundMappingText(mapping), ''] : []),
       '--- Round-wise Checklist ---',
       formatChecklistText(checklist),
       '',
@@ -180,6 +203,8 @@ export function Results() {
   }
 
   const { company, role, extractedSkills, checklist, plan, questions, readinessScore } = data;
+  const companyIntel = data.companyIntel ?? (company ? getCompanyIntel(company, data.jdText) : null);
+  const roundMapping = data.roundMapping ?? getRoundMapping(companyIntel, extractedSkills);
   const skillConfidenceMap = (() => {
     const all = getAllSkills(extractedSkills);
     const map = { ...(data?.skillConfidenceMap || {}) };
@@ -216,6 +241,38 @@ export function Results() {
         {company && <span className="text-gray-600">{company}</span>}
         {role && <span className="text-gray-600">• {role}</span>}
       </div>
+
+      {companyIntel && (
+        <Card className="border-primary-light/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-primary" />
+              Company Intel
+            </CardTitle>
+            <p className="text-xs text-gray-500">Demo Mode: Company intel generated heuristically.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase">Company</p>
+                <p className="font-medium text-gray-900">{companyIntel.companyName}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase">Industry</p>
+                <p className="text-gray-600">{companyIntel.industry}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase">Estimated Size</p>
+                <p className="text-gray-600">{companyIntel.sizeLabel}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase mb-1">Typical Hiring Focus</p>
+              <p className="text-gray-600 text-sm">{companyIntel.hiringFocus}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Readiness Score */}
@@ -282,6 +339,40 @@ export function Results() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Round Mapping — vertical timeline */}
+        {roundMapping?.length > 0 && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="w-5 h-5" />
+                Round Mapping
+              </CardTitle>
+              <p className="text-sm text-gray-500">Expected flow based on company size and detected skills</p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-0">
+                {roundMapping.map((r, i) => (
+                  <div key={r.round} className="flex gap-4">
+                    <div className="flex flex-col items-center shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-primary-light flex items-center justify-center text-primary font-semibold">
+                        {r.round}
+                      </div>
+                      {i < roundMapping.length - 1 && (
+                        <div className="w-0.5 flex-1 min-h-[20px] bg-gray-200 my-1" />
+                      )}
+                    </div>
+                    <div className="pb-8 last:pb-0">
+                      <h4 className="font-semibold text-gray-900">{r.title}</h4>
+                      <p className="text-sm text-primary mt-0.5">{r.focus}</p>
+                      <p className="text-sm text-gray-500 mt-2">Why this round matters: {r.why}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Round-wise Checklist + Export */}
         <Card className="lg:col-span-2">

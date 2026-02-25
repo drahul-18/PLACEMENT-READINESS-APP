@@ -80,7 +80,28 @@ At bottom of **Results**:
 - **Live adjustments**: +2 per "Know" skill, -2 per "Practice" skill
 - Cap: 0–100
 
-## 8. Routes (Unchanged)
+## 8. Company Intel (when company provided)
+
+- Company name, Industry, Estimated size (Startup/Mid-size/Enterprise)
+- Typical Hiring Focus (Enterprise: DSA + fundamentals; Startup: practical + stack depth)
+- Note: "Demo Mode: Company intel generated heuristically."
+
+**Test scenarios:**
+- **Amazon, Google, Infosys, TCS** → Enterprise (2000+)
+- **Unknown company** → Startup (<200)
+- **Company with "consulting" in name/JD** → Mid-size (200–2000)
+
+## 9. Round Mapping (vertical timeline)
+
+- Based on company size + detected skills
+- Each round shows: title, focus, "Why this round matters"
+
+**Test scenarios:**
+- **Enterprise + DSA** → Round 1: Online Test (DSA + Aptitude), Round 2: Technical (DSA + Core CS), Round 3: Tech + Projects, Round 4: HR
+- **Startup + React/Node** → Round 1: Practical Coding, Round 2: System Discussion, Round 3: Culture Fit
+- **Mid-size + DSA** → Round 1: Technical Screen, Round 2: Technical Deep-dive, Round 3: Culture + HR
+
+## 10. Routes (Unchanged)
 
 - `/` — Landing
 - `/dashboard` — Dashboard

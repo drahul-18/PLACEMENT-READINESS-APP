@@ -38,6 +38,8 @@ export function Assessments() {
         plan: result.plan,
         questions: result.questions,
         readinessScore: result.readinessScore,
+        companyIntel: result.companyIntel,
+        roundMapping: result.roundMapping,
       };
       const id = saveAnalysis(entry);
       navigate(`/dashboard/results${id ? `?id=${id}` : ''}`);
